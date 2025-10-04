@@ -3,15 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import {
     Viewer as ViewerComponent,
     ImageryLayer,
-    Cesium3DTileset,
     type CesiumComponentRef,
 } from "resium";
 import {
     Ion,
-    IonResource,
     createWorldTerrainAsync,
-    createWorldImageryAsync,
-    IonWorldImageryStyle,
     UrlTemplateImageryProvider,
     Viewer as CesiumViewer,
     type TerrainProvider,
@@ -22,37 +18,65 @@ Ion.defaultAccessToken = import.meta.env.VITE_CESIUM_ION_TOKEN;
 
 export default function Globe() {
     const [terrain, setTerrain] = useState<TerrainProvider>();
-    const [imagery, setImagery] = useState<ImageryProvider>();
+    const [satellite, setSatellite] = useState<ImageryProvider>();
+    const [labels, setLabels] = useState<ImageryProvider>();
+    const [roads, setRoads] = useState<ImageryProvider>();
     const viewerRef = useRef<CesiumComponentRef<CesiumViewer> | null>(null);
 
-    // Load terrain + base imagery
     useEffect(() => {
         let cancelled = false;
 
+        // Terrain
         (async () => {
             try {
                 const tp = await createWorldTerrainAsync();
                 if (!cancelled) setTerrain(tp);
             } catch {
-                setTerrain(undefined);
+                if (!cancelled) setTerrain(undefined);
             }
         })();
 
+        // Base satellite imagery (Esri World Imagery)
         (async () => {
             try {
-                // Satellite base layer
-                const ip = await createWorldImageryAsync({
-                    style: IonWorldImageryStyle.AERIAL,
+                const esriSat = new UrlTemplateImageryProvider({
+                    url:
+                        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                    credit:
+                        "Esri, Maxar, Earthstar Geographics, USDA, USGS, AeroGRID, IGN, and the GIS User Community",
                 });
-                if (!cancelled) setImagery(ip);
+                if (!cancelled) setSatellite(esriSat);
             } catch {
-                // Fallback if Ion imagery is unavailable
                 const fallback = new UrlTemplateImageryProvider({
                     url: "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-                    credit: "© OpenStreetMap",
+                    credit: "© OpenStreetMap contributors",
                 });
-                if (!cancelled) setImagery(fallback);
+                if (!cancelled) setSatellite(fallback);
             }
+        })();
+
+        // Labels (country/city names + boundaries)
+        (async () => {
+            try {
+                const esriLabels = new UrlTemplateImageryProvider({
+                    url:
+                        "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+                    credit: "Esri",
+                });
+                if (!cancelled) setLabels(esriLabels);
+            } catch {}
+        })();
+
+        // Roads & transportation overlay (optional but nice)
+        (async () => {
+            try {
+                const esriRoads = new UrlTemplateImageryProvider({
+                    url:
+                        "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}",
+                    credit: "Esri",
+                });
+                if (!cancelled) setRoads(esriRoads);
+            } catch {}
         })();
 
         return () => {
@@ -60,15 +84,13 @@ export default function Globe() {
         };
     }, []);
 
-    // Viewer tweaks: NO shadows, NO day/night shading, NO auto-fly
+    // Uniform lighting, no shadows
     useEffect(() => {
         const v = viewerRef.current?.cesiumElement;
         if (!v) return;
-
-        // Make the globe uniformly lit (no dark hemisphere)
-        v.scene.globe.enableLighting = false; // <-- key line
-        v.shadows = false;                    // <-- disable shadows
-    }, [viewerRef.current]);
+        v.scene.globe.enableLighting = false;
+        v.shadows = false;
+    }, []);
 
     return (
         <ViewerComponent
@@ -80,16 +102,18 @@ export default function Globe() {
             timeline={false}
             scene3DOnly
         >
-            {/* Base satellite imagery */}
-            {imagery && <ImageryLayer imageryProvider={imagery} />}
+            {/* Base: true-color satellite */}
+            {satellite && (
+                <ImageryLayer imageryProvider={satellite} />
+            )}
 
-            {/* Google Photorealistic 3D Tiles (Asset ID 2275207) */}
-            <Cesium3DTileset
-                url={IonResource.fromAssetId(2275207)}
-                maximumScreenSpaceError={2}
-                dynamicScreenSpaceError
-                // No onReady camera moves
-            />
+            {/* Overlays: drawn AFTER satellite so they appear on top */}
+            {roads && (
+                <ImageryLayer imageryProvider={roads} alpha={0.95} />
+            )}
+            {labels && (
+                <ImageryLayer imageryProvider={labels} alpha={1} />
+            )}
         </ViewerComponent>
     );
 }
