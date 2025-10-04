@@ -22,15 +22,10 @@ const jsonFilePath = path.join(__dirname, '../neos_enriched.json'); // adjust fi
 const jsonData = fs.readFileSync(jsonFilePath, 'utf-8');
 const neoList: NEO[] = JSON.parse(jsonData);
 
-// --- Process each NEO ---
-neoList.forEach((neo) => {
-  const minEnergy = neo.impact_energy_min_Mt;
-  const maxEnergy = neo.impact_energy_max_Mt;
-
-  // Take the average
-  const avgEnergy = (minEnergy + maxEnergy) / 2;
-
-  // Compute crater diameter
-  const craterDiameter = craterDiameterMeters(avgEnergy);
-
-});
+// --- Exported function to get crater diameter by NEO id ---
+export function getCraterDiameterById(neo_reference_id: string): number | null {
+  const neo = neoList.find(n => n.neo_reference_id === neo_reference_id);
+  if (!neo) return null;
+  const avgEnergy = (neo.impact_energy_min_Mt + neo.impact_energy_max_Mt) / 2;
+  return craterDiameterMeters(avgEnergy);
+}
