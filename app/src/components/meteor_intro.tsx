@@ -1,28 +1,21 @@
-// src/components/MeteorIntro.tsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-interface Props {
-  onLaunch: () => void;
-}
-
-const MeteorIntro: React.FC<Props> = ({ onLaunch }) => {
+const MeteorIntro: React.FC = () => {
   const [launched, setLaunched] = useState(false);
 
-  const handleLaunch = () => {
-    setLaunched(true);
-    setTimeout(onLaunch, 1000);
-  };
+  useEffect(() => {
+    const timer = setTimeout(() => setLaunched(true), 800); // auto-launch
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <div
-      onClick={handleLaunch}
       style={{
         height: "100vh",
         width: "100vw",
         overflow: "hidden",
         background: "radial-gradient(circle at center, #0a0d1f 0%, #020308 100%)",
-        cursor: "pointer",
         position: "relative",
       }}
     >
@@ -39,7 +32,7 @@ const MeteorIntro: React.FC<Props> = ({ onLaunch }) => {
               x: "-120vw",
               rotate: -720,
               scale: 0.3,
-              transition: { duration: 1, ease: "easeIn" },
+              transition: { duration: 1.2, ease: "easeIn" },
             }}
             style={{
               position: "absolute",
@@ -50,6 +43,8 @@ const MeteorIntro: React.FC<Props> = ({ onLaunch }) => {
               boxShadow:
                 "0 0 30px 10px rgba(255,150,0,0.4), 0 0 60px 40px rgba(255,80,0,0.2)",
               filter: "blur(0.5px)",
+              left: "50%",
+              transform: "translateX(-50%)",
             }}
           >
             <div
@@ -70,7 +65,7 @@ const MeteorIntro: React.FC<Props> = ({ onLaunch }) => {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
+        transition={{ delay: 0.3 }}
         style={{
           position: "absolute",
           bottom: 40,
@@ -79,10 +74,9 @@ const MeteorIntro: React.FC<Props> = ({ onLaunch }) => {
           color: "white",
           fontSize: 18,
           letterSpacing: 1,
-          //bomba
         }}
       >
-        <p>Tap anywhere to launch the meteor ☄️</p>
+        <p style={{ margin: 0 }}>☄️ Meteor Impact Initializing...</p>
       </motion.div>
     </div>
   );
