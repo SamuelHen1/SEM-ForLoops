@@ -1,6 +1,6 @@
 // src/Water.tsx
 import { useEffect, useRef } from "react";
-import tsunamiAudioUrl from "../data/Tsunami.mp3";
+import tsunamiAudioUrl from "/Tsunami.mp3";
 
 import {
   Primitive,
