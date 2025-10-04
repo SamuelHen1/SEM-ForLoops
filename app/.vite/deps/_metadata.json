@@ -1,0 +1,52 @@
+{
+  "hash": "66e1dabd",
+  "configHash": "203a9b5f",
+  "lockfileHash": "359396f2",
+  "browserHash": "05fdd2da",
+  "optimized": {
+    "react/jsx-dev-runtime": {
+      "src": "../../node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "4131f768",
+      "needsInterop": true
+    },
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "b03a612a",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "1b7ab377",
+      "needsInterop": true
+    },
+    "resium": {
+      "src": "../../node_modules/resium/dist/resium.mjs",
+      "file": "resium.js",
+      "fileHash": "f6aba0f3",
+      "needsInterop": false
+    },
+    "cesium": {
+      "src": "../../node_modules/cesium/Source/Cesium.js",
+      "file": "cesium.js",
+      "fileHash": "bd3d5238",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-JK2DCYAP": {
+      "file": "chunk-JK2DCYAP.js"
+    },
+    "chunk-2QD4QDCM": {
+      "file": "chunk-2QD4QDCM.js"
+    },
+    "chunk-54Z2MEYA": {
+      "file": "chunk-54Z2MEYA.js"
+    },
+    "chunk-7D4SUZUM": {
+      "file": "chunk-7D4SUZUM.js"
+    }
+  }
+}
