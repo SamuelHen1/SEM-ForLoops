@@ -18,7 +18,7 @@ function craterDiameterMeters(E_Mt: number): number {
 }
 
 // --- Read and parse the JSON file ---
-const jsonFilePath = path.join(__dirname, '../neos_enriched.json'); // adjust filename/path
+const jsonFilePath = path.join(__dirname, '../data/neos_enriched.json'); // adjust filename/path
 const jsonData = fs.readFileSync(jsonFilePath, 'utf-8');
 const neoList: NEO[] = JSON.parse(jsonData);
 
