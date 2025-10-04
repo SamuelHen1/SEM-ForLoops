@@ -1,4 +1,7 @@
+// src/Water.tsx
 import { useEffect, useRef } from "react";
+import tsunamiAudioUrl from "../data/Tsunami.mp3";
+
 import {
   Primitive,
   GeometryInstance,
@@ -38,9 +41,22 @@ export default function Water({
   const startTimeRef = useRef<number>();
   const rippleRadiiRef = useRef<number[]>([]);
   const frameRef = useRef<number>();
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (!viewer) return;
+
+    // Initialize audio once
+    if (!audioRef.current) {
+      audioRef.current = new Audio(tsunamiAudioUrl);
+      audioRef.current.volume = 0.6;
+    }
+
+    // Play audio immediately when tsunami is spawned
+    audioRef.current.currentTime = 0;
+    audioRef.current.play().catch(() => {
+      console.log("Autoplay blocked: user interaction required");
+    });
 
     const globe = viewer.scene.globe;
     const maxRadius = initialRadius * 5;
@@ -119,8 +135,7 @@ export default function Water({
           vertexFormat: MaterialAppearance.VERTEX_FORMAT,
         });
 
-        // Outer ripples brighter than inner
-        const rippleAlpha = alphaBase * (1 - idx / waves * 0.5 + 0.5); // leading ripple is 1x, trailing fades
+        const rippleAlpha = alphaBase * (1 - idx / waves * 0.5 + 0.5);
 
         material.uniforms.time = t + phaseOffsets[idx];
         material.uniforms.alpha = rippleAlpha;
