@@ -1,21 +1,8 @@
-// src/calculations/impact_dia.ts
-import neoList from "../data/neos_enriched.json";
-
-interface NEO {
-  neo_reference_id: string;
-  name: string;
-  impact_energy_min_Mt: number;
-  impact_energy_max_Mt: number;
-}
-
-// Empirical scaling law: D ≈ 74 · E^0.294  (D in meters, E in megatons)
-function craterDiameterMeters(E_Mt: number): number {
-  return 74 * Math.pow(E_Mt, 0.294);
-}
+import type { NEO } from "../Types/Neo"; // Correct named import, no .tsx needed for interface
+import { getAverageImpactEnergyById } from "./utilities"; // Correct named import
 
 export function getCraterDiameterById(neo_reference_id: string): number | null {
-  const neo = (neoList as NEO[]).find(n => n.neo_reference_id === neo_reference_id);
-  if (!neo) return null;
-  const avgEnergy = (neo.impact_energy_min_Mt + neo.impact_energy_max_Mt) / 2;
-  return craterDiameterMeters(avgEnergy);
+  const avgEnergy = getAverageImpactEnergyById(neo_reference_id);
+  if (avgEnergy === null) return null;
+  return 74 * Math.pow(avgEnergy, 0.294);
 }
