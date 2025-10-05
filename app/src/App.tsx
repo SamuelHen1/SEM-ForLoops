@@ -3,7 +3,7 @@ import { Link, Routes, Route, NavLink } from "react-router-dom";
 import Home from "./pages/Home";
 import GlobePage from "./pages/GlobePage";
 import AsteroidSettings from "./pages/AsteroidSettings";
-import BackgroundMusic from "./Components/BackgroundMusic";
+import BackgroundMusic from "./components/BackgroundMusic";
 
 export default function App() {
     return (
