@@ -1,4 +1,4 @@
-// src/Water.tsx
+// src/Tsunami.tsx
 import { useEffect, useRef } from "react";
 import tsunamiAudioUrl from "/Tsunami.mp3";
 
@@ -11,6 +11,7 @@ import {
   Color,
   Cartesian3,
   Cartographic,
+  VertexFormat,
   type Viewer,
 } from "cesium";
 
@@ -38,9 +39,9 @@ export default function Water({
   onEnd,
 }: WaterProps) {
   const primitivesRef = useRef<Primitive[]>([]);
-  const startTimeRef = useRef<number>();
+  const startTimeRef = useRef<number | null>(null);   // FIX: provide initial value
   const rippleRadiiRef = useRef<number[]>([]);
-  const frameRef = useRef<number>();
+  const frameRef = useRef<number | null>(null);       // FIX: provide initial value
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -92,8 +93,8 @@ export default function Water({
             return m;
           }
         `,
-      },
-    });
+      } as any, // TS typing for Cesium fabric is loose
+    } as any);
 
     rippleRadiiRef.current = Array.from({ length: waves }, (_, i) =>
       i === 0 ? initialRadius * 0.05 : initialRadius - i * (initialRadius / waves) + randomOffsets[i]
@@ -111,18 +112,22 @@ export default function Water({
     }
 
     function animate(time: number) {
-      if (!startTimeRef.current) startTimeRef.current = time;
+      if (startTimeRef.current === null) startTimeRef.current = time; // FIX: null-safe init
       const t = (time - startTimeRef.current) * 0.001;
       const alphaBase = Math.max(0, 1 - t / duration);
 
-      primitivesRef.current.forEach(p => viewer.scene.primitives.remove(p));
+      // Clear previous frame primitives
+      primitivesRef.current.forEach((p) => viewer.scene.primitives.remove(p));
       primitivesRef.current = [];
 
       const centerCarto = Cartographic.fromCartesian(center);
       const growthFactor = t / duration;
 
       rippleRadiiRef.current = rippleRadiiRef.current.map((r, idx) =>
-        initialRadius * 0.05 + (maxRadius - initialRadius * 0.05) * growthFactor - idx * (initialRadius / waves) + randomOffsets[idx]
+        initialRadius * 0.05 +
+        (maxRadius - initialRadius * 0.05) * growthFactor -
+        idx * (initialRadius / waves) +
+        randomOffsets[idx]
       );
 
       rippleRadiiRef.current.forEach((radius, idx) => {
@@ -132,13 +137,15 @@ export default function Water({
         const geom = new CircleGeometry({
           center,
           radius,
-          vertexFormat: MaterialAppearance.VERTEX_FORMAT,
-        });
+          // FIX: use VertexFormat instead of MaterialAppearance.VERTEX_FORMAT
+          vertexFormat: VertexFormat.POSITION_ONLY,
+        } as any);
 
-        const rippleAlpha = alphaBase * (1 - idx / waves * 0.5 + 0.5);
+        const rippleAlpha = alphaBase * (1 - (idx / waves) * 0.5 + 0.5);
 
-        material.uniforms.time = t + phaseOffsets[idx];
-        material.uniforms.alpha = rippleAlpha;
+        // FIX: uniforms assignment through any to satisfy TS
+        (material as any).uniforms.time = t + phaseOffsets[idx];
+        (material as any).uniforms.alpha = rippleAlpha;
 
         const prim = new Primitive({
           geometryInstances: new GeometryInstance({ geometry: geom }),
@@ -146,9 +153,9 @@ export default function Water({
             material,
             translucent: true,
             flat: true,
-          }),
+          } as any),
           asynchronous: false,
-        });
+        } as any);
 
         primitivesRef.current.push(prim);
         viewer.scene.primitives.add(prim);
@@ -159,18 +166,21 @@ export default function Water({
       if (alphaBase > 0) {
         frameRef.current = requestAnimationFrame(animate);
       } else {
-        primitivesRef.current.forEach(p => viewer.scene.primitives.remove(p));
+        // cleanup at end
+        primitivesRef.current.forEach((p) => viewer.scene.primitives.remove(p));
         primitivesRef.current = [];
-        if (onEnd) onEnd();
+        onEnd?.();
       }
     }
 
     frameRef.current = requestAnimationFrame(animate);
 
     return () => {
-      if (frameRef.current) cancelAnimationFrame(frameRef.current);
-      primitivesRef.current.forEach(p => viewer.scene.primitives.remove(p));
+      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current); // FIX: null-safe
+      primitivesRef.current.forEach((p) => viewer.scene.primitives.remove(p));
       primitivesRef.current = [];
+      frameRef.current = null;
+      startTimeRef.current = null;
     };
   }, [viewer, center, initialRadius, waves, duration, waveAmplitude, waveWavelength, onEnd]);
 
