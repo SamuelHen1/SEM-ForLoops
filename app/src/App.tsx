@@ -1,4 +1,4 @@
-/ src/App.tsx
+// src/App.tsx
 import { Link, Routes, Route, NavLink } from "react-router-dom";
 import Home from "./pages/Home";
 import GlobePage from "./pages/GlobePage";
