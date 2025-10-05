@@ -16,7 +16,6 @@ import {
   Math as CesiumMath,
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
-  EllipsoidTerrainProvider,
   Ray,
   Cartesian2,
   Cartesian3,
@@ -29,7 +28,6 @@ import {
   CircleGeometry,
   MaterialAppearance,
   Material,
-  ClassificationType,
   VertexFormat,
   type Property,
   type TerrainProvider,
@@ -37,7 +35,7 @@ import {
   type Viewer,
 } from "cesium";
 
-import Crater from "./crater";
+import Crater from "./Crater.tsx";
 import RefreshButton from "./refresh_button";
 
 const token = import.meta.env.VITE_CESIUM_ION_TOKEN as string | undefined;
@@ -46,7 +44,7 @@ if (token) Ion.defaultAccessToken = token;
 // --- Meteor tuning constants ---
 const METEOR_MS = 2200;
 const EXPLOSION_MS = 1250;
-const MAX_RADIUS_M = 1500000;
+const MAX_RADIUS_M = 1_500_000;
 const OUTLINE_ALPHA = 0.9;
 
 // ------------------------------------
@@ -95,7 +93,6 @@ function Water({
       });
     };
 
-    // Delay tsunami sound by 2.2 seconds after meteor impact
     const playTimeout = setTimeout(() => {
       tryPlay();
     }, 2200);
@@ -108,8 +105,14 @@ function Water({
     const globe = viewer.scene.globe;
     const maxRadius = Math.min(initialRadius * 5, 10_000_000);
 
-    const randomOffsets = Array.from({ length: waves }, () => Math.random() * (initialRadius / 4));
-    const phaseOffsets = Array.from({ length: waves }, () => Math.random() * Math.PI * 2);
+    const randomOffsets = Array.from(
+        { length: waves },
+        () => Math.random() * (initialRadius / 4)
+    );
+    const phaseOffsets = Array.from(
+        { length: waves },
+        () => Math.random() * Math.PI * 2
+    );
 
     const material = new Material({
       fabric: {
@@ -143,16 +146,22 @@ function Water({
     });
 
     rippleRadiiRef.current = Array.from({ length: waves }, (_, i) =>
-        i === 0 ? initialRadius * 0.05 : initialRadius - i * (initialRadius / waves) + randomOffsets[i]
+        i === 0
+            ? initialRadius * 0.05
+            : initialRadius - i * (initialRadius / waves) + randomOffsets[i]
     );
 
-    const isRippleOverWater = (centerCarto: Cartographic, radius: number, samplePoints = 12) => {
+    const isRippleOverWater = (
+        centerCarto: Cartographic,
+        radius: number,
+        samplePoints = 12
+    ) => {
       for (let i = 0; i < samplePoints; i++) {
         const angle = (i / samplePoints) * 2 * Math.PI;
         const lat = centerCarto.latitude + (radius / 6378137.0) * Math.cos(angle);
         const lon = centerCarto.longitude + (radius / 6378137.0) * Math.sin(angle);
         const height = globe.getHeight(new Cartographic(lon, lat));
-        if (height && height > 0) return false;
+        if (height !== undefined && height > 0) return false; // land
       }
       return true;
     };
@@ -170,7 +179,10 @@ function Water({
 
       rippleRadiiRef.current = rippleRadiiRef.current.map((_r, idx) =>
           Math.min(
-              initialRadius * 0.05 + (maxRadius - initialRadius * 0.05) * growthFactor - idx * (initialRadius / waves) + randomOffsets[idx],
+              initialRadius * 0.05 +
+              (maxRadius - initialRadius * 0.05) * growthFactor -
+              idx * (initialRadius / waves) +
+              randomOffsets[idx],
               maxRadius
           )
       );
@@ -186,12 +198,16 @@ function Water({
         });
 
         const rippleAlpha = alphaBase * (1 - (idx / waves) * 0.5 + 0.5);
-        material.uniforms.time = t + phaseOffsets[idx];
-        material.uniforms.alpha = rippleAlpha;
+        (material as any).uniforms.time = t + phaseOffsets[idx];
+        (material as any).uniforms.alpha = rippleAlpha;
 
         const prim = new Primitive({
           geometryInstances: new GeometryInstance({ geometry: geom }),
-          appearance: new MaterialAppearance({ material, translucent: true, flat: true }),
+          appearance: new MaterialAppearance({
+            material,
+            translucent: true,
+            flat: true,
+          }),
           asynchronous: false,
         });
 
@@ -207,7 +223,7 @@ function Water({
         primitivesRef.current.forEach((p) => viewer.scene.primitives.remove(p));
         primitivesRef.current = [];
         stopAudio();
-        if (onEnd) onEnd();
+        onEnd && onEnd();
       }
     };
 
@@ -238,37 +254,78 @@ export default function Globe() {
   const idRef = useRef(0);
   const viewerRef = useRef<CesiumComponentRef<CesiumViewer> | null>(null);
   const [viewerReady, setViewerReady] = useState(false);
+  const initRef = useRef(false);
 
   const viewerCallback = (ref: CesiumComponentRef<CesiumViewer> | null) => {
     viewerRef.current = ref;
     setViewerReady(!!ref?.cesiumElement);
   };
 
+  // ✅ Load Cesium World Terrain ONCE and set imagery
   useEffect(() => {
     (async () => {
-      const tp = token
-          ? await createWorldTerrainAsync().catch(() => new EllipsoidTerrainProvider({}))
-          : new EllipsoidTerrainProvider({});
-      setTerrain(tp);
+      if (initRef.current) return;
+      initRef.current = true;
 
-      const sat = new UrlTemplateImageryProvider({
-        url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-      });
-      setSatellite(sat);
+      try {
+        console.log("Has Ion token:", !!token, token?.slice(0, 6) + "...");
+
+        if (!token) throw new Error("Missing VITE_CESIUM_ION_TOKEN in app/.env");
+
+        const tp = await createWorldTerrainAsync({
+          requestVertexNormals: true,
+          requestWaterMask: true,
+        });
+
+        const anyTp = tp as any;
+        if (anyTp?.readyPromise) await anyTp.readyPromise;
+
+        console.log("Loaded terrain provider:", (tp as any)?.constructor?.name);
+        setTerrain(tp);
+
+        const sat = new UrlTemplateImageryProvider({
+          url:
+              "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        });
+        setSatellite(sat);
+      } catch (err) {
+        console.error("Cesium World Terrain failed:", err);
+        alert(
+            "Failed to load Cesium World Terrain.\nCheck your VITE_CESIUM_ION_TOKEN and network access to ion.cesium.com."
+        );
+      }
     })();
   }, []);
+
+  // ✅ Force-apply terrain to the Cesium viewer
+  useEffect(() => {
+    const v = viewerRef.current?.cesiumElement;
+    if (!v || !terrain) return;
+    v.terrainProvider = terrain;
+    v.scene.requestRender();
+    console.log("Applied terrain provider to viewer:", v.terrainProvider.constructor.name);
+  }, [terrain]);
 
   useEffect(() => {
     const v = viewerRef.current?.cesiumElement;
     if (!viewerReady || !v) return;
-    v.scene.globe.enableLighting = false;
-    v.shadows = false;
+
     v.scene.globe.depthTestAgainstTerrain = true;
+    v.scene.globe.enableLighting = false;
     v.scene.requestRenderMode = true;
     v.clock.shouldAnimate = true;
   }, [viewerReady]);
 
-  // handle clicks for meteors
+// Log AFTER terrain is applied:
+  useEffect(() => {
+    const viewer = viewerRef.current?.cesiumElement;
+    if (!viewerReady || !viewer || !terrain) return;
+    console.log("NOW active terrain type:", viewer.terrainProvider.constructor.name); // <- use `viewer`
+  }, [viewerReady, terrain]);
+
+
+
+  // --- Meteor click handler ---
   useEffect(() => {
     const viewer = viewerRef.current?.cesiumElement;
     if (!viewerReady || !viewer) return;
@@ -317,7 +374,7 @@ export default function Globe() {
       const id = ++idRef.current;
       const startTime = JulianDate.now();
       const durationSec = METEOR_MS / 1000;
-      const startCartesian = Cartesian3.fromDegrees(lon + 40, lat - 30, 800000);
+      const startCartesian = Cartesian3.fromDegrees(lon + 40, lat - 30, 800_000);
 
       const posProp: Property = new CallbackProperty((t: any) => {
         const dt = Math.max(0, JulianDate.secondsDifference(t, startTime));
@@ -333,7 +390,6 @@ export default function Globe() {
       window.setTimeout(() => {
         setMeteors((prev) => prev.filter((m) => m.id !== id));
         setExplosions((prev) => [...prev, { id, lat, lon, start: JulianDate.now() }]);
-
         setTimeout(() => {
           setTsunamis((prev) => [...prev, Cartesian3.fromDegrees(lon, lat)]);
         }, 2200);
@@ -343,9 +399,16 @@ export default function Globe() {
     return () => handler.destroy();
   }, [viewerReady]);
 
+  // --- UI renderers ---
   const renderMeteor = (m: any) => (
       <Entity key={`met-${m.id}`} position={m.posProp}>
-        <PointGraphics color={Color.YELLOW} outlineColor={Color.WHITE} outlineWidth={1} pixelSize={8} disableDepthTestDistance={Infinity} />
+        <PointGraphics
+            color={Color.YELLOW}
+            outlineColor={Color.WHITE}
+            outlineWidth={1}
+            pixelSize={8}
+            disableDepthTestDistance={Infinity}
+        />
       </Entity>
   );
 
@@ -383,91 +446,88 @@ export default function Globe() {
               material={materialProp}
               outline
               outlineColor={outlineColorProp as any}
-              classificationType={ClassificationType.TERRAIN}
+              height={0}
           />
         </Entity>
     );
   };
 
-  // ---- Reset function ----
   const resetGlobe = () => {
     setClickedCoords(null);
     setMeteors([]);
     setExplosions([]);
     setTsunamis([]);
     const viewer = viewerRef.current?.cesiumElement;
-    if (viewer) {
-      viewer.camera.flyHome(1.5); // Smooth animation back to starting globe view
-    }
+    viewer?.camera.flyHome(1.5);
   };
 
+  // ---------- Render ----------
   return (
-    <>
-      <ViewerComponent
-        ref={viewerCallback as any}
-        full
-        terrainProvider={terrain}
-        baseLayerPicker={true}
-        animation={true}
-        timeline={true}
-        infoBox={false}
-        selectionIndicator={false}
-        navigationHelpButton={false}
-        sceneModePicker={false}
-        homeButton={true}
-        geocoder={true}
-        shouldAnimate={true}
-      >
-        {satellite && <ImageryLayer imageryProvider={satellite} />}
-        {meteors.map(renderMeteor)}
-        {explosions.map(renderExplosion)}
-      </ViewerComponent>
-
-      {/* Reset button in top left */}
-      {viewerReady && <RefreshButton onClick={resetGlobe} />}
-
-      {clickedCoords && (
-        <div
-          style={{
-            position: "absolute",
-            top: 10,
-            left: 120,
-            background: "rgba(0,0,0,0.55)",
-            color: "white",
-            padding: "6px 10px",
-            borderRadius: "6px",
-            fontSize: "14px",
-            userSelect: "none",
-          }}
+      <>
+        <ViewerComponent
+            ref={viewerCallback as any}
+            full
+            terrainProvider={terrain}
+            baseLayerPicker={false}
+            animation
+            timeline
+            infoBox={false}
+            selectionIndicator={false}
+            navigationHelpButton={false}
+            sceneModePicker={false}
+            homeButton
+            geocoder
+            shouldAnimate
         >
-          Lat: {clickedCoords.lat.toFixed(4)}, Lon: {clickedCoords.lon.toFixed(4)}
-        </div>
-      )}
+          {satellite && <ImageryLayer imageryProvider={satellite} />}
+          {meteors.map(renderMeteor)}
+          {explosions.map(renderExplosion)}
+        </ViewerComponent>
 
-      {viewerReady &&
-        tsunamis.map((pos, i) => (
-          <Water
-            key={i}
-            viewer={viewerRef.current!.cesiumElement!}
-            center={pos}
-            duration={10}
-            waves={5}
-            waveAmplitude={0.2}
-            waveWavelength={0.25}
-            onEnd={() => setTsunamis((prev) => prev.filter((_, idx) => idx !== i))}
-          />
-        ))}
+        {viewerReady && <RefreshButton onClick={resetGlobe} />}
 
-      {viewerReady &&
-        explosions.map((e, i) => (
-          <Crater
-            key={`crater-${e.id}`}
-            viewer={viewerRef.current!.cesiumElement!}
-            center={Cartesian3.fromDegrees(e.lon, e.lat)}
-            neo_reference_id={"2000433"}
-            onEnd={() => {}}
-          />
-        ))}
-    </>
+        {clickedCoords && (
+            <div
+                style={{
+                  position: "absolute",
+                  top: 10,
+                  left: 120,
+                  background: "rgba(0,0,0,0.55)",
+                  color: "white",
+                  padding: "6px 10px",
+                  borderRadius: "6px",
+                  fontSize: "14px",
+                  userSelect: "none",
+                }}
+            >
+              Lat: {clickedCoords.lat.toFixed(4)}, Lon: {clickedCoords.lon.toFixed(4)}
+            </div>
+        )}
+
+        {viewerReady &&
+            tsunamis.map((pos, i) => (
+                <Water
+                    key={i}
+                    viewer={viewerRef.current!.cesiumElement!}
+                    center={pos}
+                    duration={10}
+                    waves={5}
+                    waveAmplitude={0.2}
+                    waveWavelength={0.25}
+                    onEnd={() => setTsunamis((prev) => prev.filter((_, idx) => idx !== i))}
+                />
+            ))}
+
+        {viewerReady &&
+            explosions.map((e) => (
+                <Crater
+                    key={`crater-${e.id}`}
+                    viewer={viewerRef.current!.cesiumElement!}
+                    center={Cartesian3.fromDegrees(e.lon, e.lat)}
+                    neo_reference_id={"2000433"}
+                    onEnd={() => {}}
+                />
+            ))}
+      </>
   );
 }
