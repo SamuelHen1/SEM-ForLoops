@@ -15,7 +15,7 @@ let state: ImpactParams = {
     diameterM: 100,
     velocityMS: 20000,
     densityKgM3: 3000,
-    energyMt: null,
+    energyMt: 5000000000000,
     material: "rock",
     angleDeg: 45,
 };
