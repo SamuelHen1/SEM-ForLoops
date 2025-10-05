@@ -35,6 +35,8 @@ import {
   type Viewer,
 } from "cesium";
 
+import Crater from "./crater";
+
 const token = import.meta.env.VITE_CESIUM_ION_TOKEN as string | undefined;
 if (token) Ion.defaultAccessToken = token;
 
@@ -90,7 +92,7 @@ function Water({
       });
     };
 
-    // ⏱️ Delay tsunami sound by 2.2 seconds (same as meteor duration)
+    // Delay tsunami sound by 2.2 seconds
     const playTimeout = setTimeout(() => {
       tryPlay();
     }, 2200);
@@ -316,13 +318,15 @@ export default function Globe() {
 
       setMeteors((prev) => [...prev, { id, start: startCartesian, target: targetCartesian!, startTime, durationSec }]);
 
-      // Remove meteor and trigger explosion + tsunami
       window.setTimeout(() => {
         setMeteors((prev) => prev.filter((m) => m.id !== id));
         setExplosions((prev) => [...prev, { id, lat, lon, start: JulianDate.now() }]);
-        // 🌊 Tsunami starts right after explosion (sound delayed internally by 2.2s)
-        setTsunamis((prev) => [...prev, Cartesian3.fromDegrees(lon, lat)]);
-        scene.requestRender();
+
+        // 🌊 Tsunami 2.2 seconds after impact
+        setTimeout(() => {
+          setTsunamis((prev) => [...prev, Cartesian3.fromDegrees(lon, lat)]);
+        }, 2200);
+
       }, METEOR_MS);
     }, ScreenSpaceEventType.LEFT_CLICK);
 
@@ -392,10 +396,16 @@ export default function Globe() {
         ref={viewerCallback as any}
         full
         terrainProvider={terrain}
-        baseLayerPicker={false}
-        animation={false}
-        timeline={false}
+        baseLayerPicker={true}
+        animation={true}
+        timeline={true}
+        infoBox={false}
         selectionIndicator={false}
+        navigationHelpButton={false}
+        sceneModePicker={false}
+        homeButton={true}
+        geocoder={true}
+        shouldAnimate={true}
       >
         {satellite && <ImageryLayer imageryProvider={satellite} />}
         {meteors.map(renderMeteor)}
@@ -431,6 +441,17 @@ export default function Globe() {
             waveAmplitude={0.2}
             waveWavelength={0.25}
             onEnd={() => setTsunamis((prev) => prev.filter((_, idx) => idx !== i))}
+          />
+        ))}
+
+      {viewerReady &&
+        explosions.map((e, i) => (
+          <Crater
+            key={`crater-${e.id}`}
+            viewer={viewerRef.current!.cesiumElement!}
+            center={Cartesian3.fromDegrees(e.lon, e.lat)}
+            neo_reference_id={"2000433"} // replace with dynamic ID if available
+            onEnd={() => {}}
           />
         ))}
     </>
