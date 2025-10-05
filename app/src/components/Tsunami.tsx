@@ -139,7 +139,7 @@ export default function Water({
         const geom = new CircleGeometry({
           center,
           radius,
-          vertexFormat: VertexFormat.POSITION_ONLY,
+          vertexFormat: VertexFormat.POSITION_AND_ST,
         } as any);
 
         const rippleAlpha = alphaBase * (1 - (idx / waves) * 0.5 + 0.5);

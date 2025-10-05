@@ -77,7 +77,7 @@ export default function Crater({ viewer, center, neo_reference_id, onEnd }: Crat
           center,
           radius,
           // use VertexFormat directly to satisfy typings
-          vertexFormat: VertexFormat.POSITION_ONLY,
+          vertexFormat: VertexFormat.POSITION_AND_ST,
         } as any),
       }),
       appearance: new MaterialAppearance({
@@ -98,7 +98,7 @@ export default function Crater({ viewer, center, neo_reference_id, onEnd }: Crat
           geometry: new CircleGeometry({
             center,
             radius: r,
-            vertexFormat: VertexFormat.POSITION_ONLY,
+            vertexFormat: VertexFormat.POSITION_AND_ST,
           } as any),
         }),
         appearance: new MaterialAppearance({
@@ -132,7 +132,7 @@ export default function Crater({ viewer, center, neo_reference_id, onEnd }: Crat
               geometry: new CircleGeometry({
                 center,
                 radius: ring.radius + growth,
-                vertexFormat: VertexFormat.POSITION_ONLY,
+                vertexFormat: VertexFormat.POSITION_AND_ST,
               } as any),
             }),
             appearance: new MaterialAppearance({
