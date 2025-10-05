@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import raw from "../data/neos_enriched.json"; // <-- adjust path if needed
 
 type NEO = {
+  neo_reference_id: string
   name: string;
   mass_max_kg: number;
   impact_energy_max_Mt: number;
