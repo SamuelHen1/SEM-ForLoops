@@ -1,6 +1,33 @@
 // src/utils/impact.ts
 import type { ImpactParams } from "../state/impactBus";
 
+
+// === π-scaling crater diameter (Earth, simple crater regime) =================
+export function estimateCraterDiameterM(
+    diameterM: number,        // impactor diameter
+    velocityMS: number,       // impact speed
+    rhoImpKgM3: number,       // impactor density
+    rhoTargetKgM3 = 2500,     // typical rock/soil
+    g = 9.81,                 // m/s^2
+    angleDeg = 45             // impact angle to horizontal
+): number {
+    if (!diameterM || !velocityMS || !rhoImpKgM3) return 0;
+
+    const theta = (angleDeg * Math.PI) / 180;
+
+    // Transient crater scaling (π-scaling style) for rock targets (simple regime)
+    const D_transient =
+        1.8 *
+        Math.pow(g, -0.22) *
+        Math.pow(velocityMS * Math.sin(theta), 0.44) *
+        Math.pow(rhoImpKgM3 / rhoTargetKgM3, 1 / 3) *
+        Math.pow(diameterM, 0.78);
+
+    // Final simple crater is a bit larger than transient
+    const D_final = 1.25 * D_transient;
+    return D_final; // meters
+}
+
 /** Convert kinetic energy to crater radius (meters). */
 export function craterRadiusFromKE(KE_J: number, material: "rock" | "soil" = "rock", angleDeg = 45) {
     const exponent = 1 / 3; // cube-root scaling
@@ -23,12 +50,24 @@ export function kineticEnergyJ(p: ImpactParams) {
     return 0.5 * mass * p.velocityMS ** 2;
 }
 
-/** Convenience: directly get crater & (optional) blast radius. */
 export function computeRadii(p: ImpactParams) {
+    // Keep KE for blast/thermal effects
     const KE = kineticEnergyJ(p);
-    const craterRadiusM = craterRadiusFromKE(KE, p.material ?? "rock", p.angleDeg ?? 45);
 
-    // Optional: make a blast radius that scales a bit larger than crater
-    const blastRadiusM = craterRadiusM * 6;  // tweak to taste
+    // Crater size from π-scaling (depends on size, speed, density, angle, gravity)
+    const craterDiameterM = estimateCraterDiameterM(
+        p.diameterM,
+        p.velocityMS,
+        p.densityKgM3,
+        2500,                 // target density (rock/soil)
+        9.81,                 // Earth gravity
+        p.angleDeg ?? 45
+    );
+    const craterRadiusM = craterDiameterM / 2;
+
+    // Blast radius: keep your current visual scaling (energy → damage footprint)
+    const blastRadiusM = craterRadiusM * 6; // tweak for visuals if you like
+
     return { KE, craterRadiusM, blastRadiusM };
 }
+
