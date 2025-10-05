@@ -1,4 +1,4 @@
-// src/Tsunami.tsx
+// src/components/Tsunami.tsx
 import { useEffect, useRef } from "react";
 import tsunamiAudioUrl from "/Tsunami.mp3";
 
@@ -21,7 +21,6 @@ interface WaterProps {
   initialRadius?: number;
   waves?: number;
   duration?: number;
-  fadeDuration?: number;
   waveAmplitude?: number;
   waveWavelength?: number;
   onEnd?: () => void;
@@ -33,15 +32,14 @@ export default function Water({
   initialRadius = 2_000_000,
   waves = 5,
   duration = 10,
-  fadeDuration = 2,
   waveAmplitude = 0.2,
   waveWavelength = 0.25,
   onEnd,
 }: WaterProps) {
   const primitivesRef = useRef<Primitive[]>([]);
-  const startTimeRef = useRef<number | null>(null);   // FIX: provide initial value
+  const startTimeRef = useRef<number | null>(null);
   const rippleRadiiRef = useRef<number[]>([]);
-  const frameRef = useRef<number | null>(null);       // FIX: provide initial value
+  const frameRef = useRef<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -56,7 +54,7 @@ export default function Water({
     // Play audio immediately when tsunami is spawned
     audioRef.current.currentTime = 0;
     audioRef.current.play().catch(() => {
-      console.log("Autoplay blocked: user interaction required");
+      // likely autoplay blocked until user gesture
     });
 
     const globe = viewer.scene.globe;
@@ -93,7 +91,7 @@ export default function Water({
             return m;
           }
         `,
-      } as any, // TS typing for Cesium fabric is loose
+      } as any,
     } as any);
 
     rippleRadiiRef.current = Array.from({ length: waves }, (_, i) =>
@@ -112,7 +110,7 @@ export default function Water({
     }
 
     function animate(time: number) {
-      if (startTimeRef.current === null) startTimeRef.current = time; // FIX: null-safe init
+      if (startTimeRef.current === null) startTimeRef.current = time;
       const t = (time - startTimeRef.current) * 0.001;
       const alphaBase = Math.max(0, 1 - t / duration);
 
@@ -123,12 +121,16 @@ export default function Water({
       const centerCarto = Cartographic.fromCartesian(center);
       const growthFactor = t / duration;
 
-      rippleRadiiRef.current = rippleRadiiRef.current.map((r, idx) =>
-        initialRadius * 0.05 +
-        (maxRadius - initialRadius * 0.05) * growthFactor -
-        idx * (initialRadius / waves) +
-        randomOffsets[idx]
-      );
+      // Recompute radii without an unused-map parameter
+      const newRadii: number[] = new Array(rippleRadiiRef.current.length);
+      for (let idx = 0; idx < rippleRadiiRef.current.length; idx++) {
+        newRadii[idx] =
+          initialRadius * 0.05 +
+          (maxRadius - initialRadius * 0.05) * growthFactor -
+          idx * (initialRadius / waves) +
+          randomOffsets[idx];
+      }
+      rippleRadiiRef.current = newRadii;
 
       rippleRadiiRef.current.forEach((radius, idx) => {
         if (radius <= 0 || alphaBase <= 0) return;
@@ -137,13 +139,11 @@ export default function Water({
         const geom = new CircleGeometry({
           center,
           radius,
-          // FIX: use VertexFormat instead of MaterialAppearance.VERTEX_FORMAT
           vertexFormat: VertexFormat.POSITION_ONLY,
         } as any);
 
         const rippleAlpha = alphaBase * (1 - (idx / waves) * 0.5 + 0.5);
 
-        // FIX: uniforms assignment through any to satisfy TS
         (material as any).uniforms.time = t + phaseOffsets[idx];
         (material as any).uniforms.alpha = rippleAlpha;
 
@@ -176,7 +176,7 @@ export default function Water({
     frameRef.current = requestAnimationFrame(animate);
 
     return () => {
-      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current); // FIX: null-safe
+      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
       primitivesRef.current.forEach((p) => viewer.scene.primitives.remove(p));
       primitivesRef.current = [];
       frameRef.current = null;
