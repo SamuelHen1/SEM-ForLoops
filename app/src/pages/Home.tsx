@@ -1,92 +1,44 @@
 // src/pages/Home.tsx
 import { Link } from "react-router-dom";
-import space from "../assets/space.avif"; 
 
 export default function Home() {
     return (
-        <div
-            style={{
-                position: "relative",
-                height: "100vh",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "flex-start",
-                paddingTop: "100px",
-                textAlign: "center",
-                overflow: "hidden",
-                color: "white",
-                backgroundImage: `url(${space})`, 
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-                backgroundRepeat: "no-repeat",
-            }}
-        >
-            <div style={{ position: "relative", zIndex: 1 }}>
-                <h1 style={{ marginBottom: 8, fontSize: "3rem" }}>IMPACTOR</h1>
-                <p style={{ margin: "8px 0 24px", fontSize: "1.1rem", color: "#ccc" }}>
-                    Welcome! Choose a tool below to get started.
-                </p>
+        <div style={{ padding: 24 }}>
+            <h1 style={{ marginBottom: 8 }}>Meteor Madness</h1>
+            <p style={{ margin: "8px 0 24px" }}>
+                Welcome! Choose a tool below to get started.
+            </p>
 
-                <div
+            <div style={{ display: "grid", gap: 12, maxWidth: 420 }}>
+                <Link
+                    to="/globe"
                     style={{
-                        display: "grid",
-                        gap: 12,
-                        maxWidth: 420,
-                        width: "100%",
-                        justifyItems: "center",
+                        display: "block",
+                        padding: "14px 16px",
+                        borderRadius: 10,
+                        background: "#111",
+                        color: "white",
+                        textDecoration: "none",
+                        border: "1px solid #2a2a2a",
                     }}
                 >
-                    <Link
-                        to="/globe"
-                        style={{
-                            display: "block",
-                            width: "100%",
-                            padding: "14px 16px",
-                            borderRadius: 10,
-                            background: "rgba(30,30,30,0.7)",
-                            color: "white",
-                            textDecoration: "none",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            textAlign: "center",
-                            backdropFilter: "blur(4px)",
-                            transition: "all 0.3s ease",
-                        }}
-                        onMouseOver={(e) =>
-                            (e.currentTarget.style.background = "rgba(80,80,80,0.8)")
-                        }
-                        onMouseOut={(e) =>
-                            (e.currentTarget.style.background = "rgba(30,30,30,0.7)")
-                        }
-                    >
-                        🌍 Open Globe Viewer
-                    </Link>
+                    🌍 Open Globe viewer
+                </Link>
 
-                    <Link
-                        to="/settings"
-                        style={{
-                            display: "block",
-                            width: "100%",
-                            padding: "14px 16px",
-                            borderRadius: 10,
-                            background: "rgba(30,30,30,0.7)",
-                            color: "white",
-                            textDecoration: "none",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            textAlign: "center",
-                            backdropFilter: "blur(4px)",
-                            transition: "all 0.3s ease",
-                        }}
-                        onMouseOver={(e) =>
-                            (e.currentTarget.style.background = "rgba(80,80,80,0.8)")
-                        }
-                        onMouseOut={(e) =>
-                            (e.currentTarget.style.background = "rgba(30,30,30,0.7)")
-                        }
-                    >
-                        ☄️ Asteroid Settings
-                    </Link>
-                </div>
+                <Link
+                    to="/settings"
+                    style={{
+                        display: "block",
+                        padding: "14px 16px",
+                        borderRadius: 10,
+                        background: "#111",
+                        color: "white",
+                        textDecoration: "none",
+                        border: "1px solid #2a2a2a",
+                    }}
+                >
+                    ☄️ Asteroid settings
+                </Link>
             </div>
         </div>
     );
