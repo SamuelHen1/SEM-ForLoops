@@ -16,16 +16,19 @@ interface CraterProps {
   viewer: Viewer;
   center: Cartesian3;
   neo_reference_id: string;
+  craterRadiusM?: number;   // <-- add this
   onEnd?: () => void;
 }
 
-export default function Crater({ viewer, center, neo_reference_id, onEnd }: CraterProps) {
+
+export default function Crater({ viewer, center, neo_reference_id, craterRadiusM, onEnd }: CraterProps) {
   const primitivesRef = useRef<Primitive[]>([]);
   const frameRef = useRef<number | null>(null);
   useEffect(() => {
     if (!viewer) return;
 
-    const diameter = getCraterDiameterById(neo_reference_id) ?? 5000;
+    // Use craterRadiusM if provided, otherwise calculate from neo_reference_id
+    const diameter = craterRadiusM ? craterRadiusM * 2 : getCraterDiameterById(neo_reference_id) ?? 5000;
     const radius = diameter / 2;
 
     // ---- Materials (type-safe uniforms) ----
@@ -163,7 +166,7 @@ export default function Crater({ viewer, center, neo_reference_id, onEnd }: Crat
       primitivesRef.current = [];
       onEnd?.();
     };
-  }, [viewer, center, neo_reference_id, onEnd]);
+  }, [viewer, center, neo_reference_id, craterRadiusM, onEnd]);
 
   return null;
 }
