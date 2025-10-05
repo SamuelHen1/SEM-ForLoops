@@ -3,10 +3,14 @@ import { Link, Routes, Route, NavLink } from "react-router-dom";
 import Home from "./pages/Home";
 import GlobePage from "./pages/GlobePage";
 import AsteroidSettings from "./pages/AsteroidSettings";
+import BackgroundMusic from "./Components/BackgroundMusic";
 
 export default function App() {
     return (
         <div style={{ height: "100vh", width: "100vw", display: "flex", flexDirection: "column" }}>
+            {/* Play background music */}
+            <BackgroundMusic src="/bg_music.mp3" volume={0.5} />
+
             {/* Simple header/nav */}
             <header style={{ padding: "10px 16px", background: "#0b0b0b", color: "white" }}>
                 <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
