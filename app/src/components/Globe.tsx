@@ -29,7 +29,6 @@ import {
   CircleGeometry,
   EllipsoidSurfaceAppearance,
   Material,
-  VertexFormat,
   type Property,
   type TerrainProvider,
   type ImageryProvider,
@@ -40,6 +39,7 @@ import Crater from "./Crater";
 import RefreshButton from "./refresh_button";
 import { getImpact } from "../state/impactBus";
 import { computeRadii } from "../utils/impact";
+import { estimateCasualties, type CasualtyEstimate } from "../services/populationDensity";
 
 const token = import.meta.env.VITE_CESIUM_ION_TOKEN as string | undefined;
 if (token) Ion.defaultAccessToken = token;
@@ -237,6 +237,12 @@ type ExplosionEvent = {
   blastRadiusM: number;
 };
 
+type ImpactSummary = {
+  status: "loading" | "ready" | "error";
+  data?: CasualtyEstimate;
+  error?: string;
+};
+
 export default function Globe() {
   const [terrain, setTerrain] = useState<TerrainProvider>();
   const [satellite, setSatellite] = useState<ImageryProvider>();
@@ -244,6 +250,8 @@ export default function Globe() {
   const [meteors, setMeteors] = useState<any[]>([]);
   const [explosions, setExplosions] = useState<ExplosionEvent[]>([]);
   const [tsunamis, setTsunamis] = useState<Cartesian3[]>([]);
+  const [impactSummaries, setImpactSummaries] = useState<Record<number, ImpactSummary>>({});
+  const [latestImpactMeta, setLatestImpactMeta] = useState<{ id: number; lat: number; lon: number; blastRadiusM: number } | null>(null);
   const idRef = useRef(0);
   const viewerRef = useRef<CesiumComponentRef<CesiumViewer> | null>(null);
   const [viewerReady, setViewerReady] = useState(false);
@@ -362,13 +370,47 @@ export default function Globe() {
       // 🔥 Read latest settings when the impact happens
       const impact = getImpact();
       const { craterRadiusM, blastRadiusM } = computeRadii(impact);
-      console.log("[impact used for this click]", impact, { craterRadiusM, blastRadiusM });
+      const effectiveBlastRadiusM = Math.max(blastRadiusM ?? 0, craterRadiusM ?? 0);
+      setLatestImpactMeta({ id, lat, lon, blastRadiusM: effectiveBlastRadiusM });
+
+      if (effectiveBlastRadiusM > 0) {
+        setImpactSummaries((prev) => ({
+          ...prev,
+          [id]: { status: "loading" },
+        }));
+
+        estimateCasualties(lat, lon, effectiveBlastRadiusM)
+          .then((data) => {
+            setImpactSummaries((prev) => ({
+              ...prev,
+              [id]: { status: "ready", data },
+            }));
+          })
+          .catch((err) => {
+            console.error("Population density lookup failed", err);
+            setImpactSummaries((prev) => ({
+              ...prev,
+              [id]: { status: "error", error: err instanceof Error ? err.message : String(err) },
+            }));
+          });
+      } else {
+        setImpactSummaries((prev) => ({
+          ...prev,
+          [id]: { status: "error", error: "Impact radius unavailable" },
+        }));
+      }
+
+      console.log("[impact used for this click]", impact, {
+        craterRadiusM,
+        blastRadiusM,
+        effectiveBlastRadiusM,
+      });
 
       window.setTimeout(() => {
         setMeteors((prev) => prev.filter((m) => m.id !== id));
         setExplosions((prev) => [
           ...prev,
-          { id, lat, lon, start: JulianDate.now(), craterRadiusM, blastRadiusM },
+          { id, lat, lon, start: JulianDate.now(), craterRadiusM, blastRadiusM: effectiveBlastRadiusM },
         ]);
         setTimeout(() => {
           setTsunamis((prev) => [...prev, Cartesian3.fromDegrees(lon, lat)]);
@@ -391,6 +433,11 @@ export default function Globe() {
       />
     </Entity>
   );
+
+  const latestImpactSummary = latestImpactMeta ? impactSummaries[latestImpactMeta.id] : undefined;
+  const casualtyData = latestImpactSummary?.data;
+
+  const casualtyOverlayTop = clickedCoords ? 60 : 10;
 
   const renderExplosion = (e: ExplosionEvent) => {
     const pos = Cartesian3.fromDegrees(e.lon, e.lat);
@@ -441,6 +488,8 @@ export default function Globe() {
     setExplosions([]);
     setTsunamis([]);
     window.location.reload();
+    setImpactSummaries({});
+    setLatestImpactMeta(null);
     const viewer = viewerRef.current?.cesiumElement;
     viewer?.camera.flyHome(1.5);
   };
@@ -488,6 +537,76 @@ export default function Globe() {
         </div>
       )}
 
+      {latestImpactMeta && latestImpactSummary && (
+        <div
+          style={{
+            position: "absolute",
+            top: casualtyOverlayTop,
+            left: 120,
+            background: "rgba(12,16,24,0.75)",
+            color: "white",
+            padding: "10px 14px",
+            borderRadius: "8px",
+            fontSize: "13px",
+            lineHeight: 1.5,
+            width: 280,
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>Impact Assessment</div>
+          <div>Blast radius: {(latestImpactMeta.blastRadiusM / 1000).toFixed(1)} km</div>
+          {latestImpactSummary.status === "loading" && <div>Estimating population exposure...</div>}
+          {latestImpactSummary.status === "error" && (
+            <div style={{ color: "#fbd38d" }}>
+              Population lookup failed: {latestImpactSummary.error ?? "Unknown error"}
+            </div>
+          )}
+          {latestImpactSummary.status === "ready" && casualtyData && (
+            <div>
+              <div>
+                Effective density: {(casualtyData.effectiveDensityPerSqKm ?? casualtyData.densityPerSqKm).toFixed(1)} ppl/km^2
+              </div>
+              {casualtyData.sampledMeanDensityPerSqKm !== undefined && (
+                <div>
+                  Sampled mean density (within 100 km): {casualtyData.sampledMeanDensityPerSqKm.toFixed(1)} ppl/km^2
+                  {casualtyData.samplePointCount !== undefined && (
+                    <span> ({casualtyData.samplePointCount} cells)</span>
+                  )}
+                </div>
+              )}
+              {casualtyData.localCellDensityPerSqKm !== undefined && (
+                <div>
+                  Local cell density: {casualtyData.localCellDensityPerSqKm.toFixed(1)} ppl/km^2
+                  {casualtyData.localCellPopulation !== undefined && casualtyData.localCellAreaKm2 && (
+                    <>
+                      {" "}
+                      ({Math.round(casualtyData.localCellPopulation).toLocaleString()} people in ~
+                      {casualtyData.localCellAreaKm2.toFixed(3)} km^2)
+                    </>
+                  )}
+                </div>
+              )}
+              {casualtyData.countryMeanDensityPerSqKm !== undefined && (
+                <div>
+                  Country mean density: {casualtyData.countryMeanDensityPerSqKm.toFixed(1)} ppl/km^2
+                </div>
+              )}
+              <div>Impact area: {casualtyData.impactAreaKm2.toFixed(1)} km^2</div>
+              <div style={{ fontWeight: 600 }}>
+                Estimated casualties: {Math.round(casualtyData.estimatedCasualties).toLocaleString()}
+              </div>
+              {casualtyData.notes && (
+                <div style={{ fontSize: "11px", marginTop: 4, opacity: 0.8 }}>
+                  {casualtyData.notes}
+                </div>
+              )}
+              <div style={{ fontSize: "11px", marginTop: 4, opacity: 0.8 }}>
+                Source: {casualtyData.source}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {viewerReady &&
         tsunamis.map((pos, i) => (
           <Water
@@ -517,3 +636,4 @@ export default function Globe() {
     </>
   );
 }
+
