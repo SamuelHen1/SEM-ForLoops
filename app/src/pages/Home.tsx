@@ -23,7 +23,7 @@ export default function Home() {
             }}
         >
             <div style={{ position: "relative", zIndex: 1 }}>
-                <h1 style={{ marginBottom: 8, fontSize: "2.5rem" }}>🌍 Meteor Madness</h1>
+                <h1 style={{ marginBottom: 8, fontSize: "2.5rem" }}>IMPACTOR</h1>
                 <p style={{ margin: "8px 0 24px", fontSize: "1.1rem", color: "#ccc" }}>
                     Welcome! Choose a tool below to get started.
                 </p>
