@@ -36,11 +36,12 @@ import {
 } from "cesium";
 
 import Crater from "./crater";
+import RefreshButton from "./refresh_button";
 
 const token = import.meta.env.VITE_CESIUM_ION_TOKEN as string | undefined;
 if (token) Ion.defaultAccessToken = token;
 
-// --- Meteor tuning ---
+// --- Meteor tuning constants ---
 const METEOR_MS = 2200;
 const EXPLOSION_MS = 1250;
 const MAX_RADIUS_M = 1500000;
@@ -77,7 +78,7 @@ function Water({
   useEffect(() => {
     if (!viewer) return;
 
-    // ---- 🎵 Tsunami Audio ----
+    // ---- Tsunami Audio ----
     const audio = new Audio("/Tsunami.mp3");
     audio.volume = 0.6;
     audioRef.current = audio;
@@ -92,7 +93,7 @@ function Water({
       });
     };
 
-    // Delay tsunami sound by 2.2 seconds
+    // Delay tsunami sound by 2.2 seconds after meteor impact
     const playTimeout = setTimeout(() => {
       tryPlay();
     }, 2200);
@@ -263,7 +264,7 @@ export default function Globe() {
     v.clock.shouldAnimate = true;
   }, [viewerReady]);
 
-  // handle clicks
+  // handle clicks for meteors
   useEffect(() => {
     const viewer = viewerRef.current?.cesiumElement;
     if (!viewerReady || !viewer) return;
@@ -272,7 +273,6 @@ export default function Globe() {
     handler.setInputAction((click: { position: Cartesian2 }) => {
       const { scene } = viewer;
 
-      // 🎵 Meteor Sound (instant)
       const meteorSound = new Audio("/Meteor.mp3");
       meteorSound.volume = 0.8;
       meteorSound.play().catch(() => {
@@ -313,7 +313,6 @@ export default function Globe() {
       const id = ++idRef.current;
       const startTime = JulianDate.now();
       const durationSec = METEOR_MS / 1000;
-
       const startCartesian = Cartesian3.fromDegrees(lon + 40, lat - 30, 800000);
 
       setMeteors((prev) => [...prev, { id, start: startCartesian, target: targetCartesian!, startTime, durationSec }]);
@@ -322,11 +321,9 @@ export default function Globe() {
         setMeteors((prev) => prev.filter((m) => m.id !== id));
         setExplosions((prev) => [...prev, { id, lat, lon, start: JulianDate.now() }]);
 
-        // 🌊 Tsunami 2.2 seconds after impact
         setTimeout(() => {
           setTsunamis((prev) => [...prev, Cartesian3.fromDegrees(lon, lat)]);
         }, 2200);
-
       }, METEOR_MS);
     }, ScreenSpaceEventType.LEFT_CLICK);
 
@@ -390,6 +387,18 @@ export default function Globe() {
     );
   };
 
+  // ---- Reset function ----
+  const resetGlobe = () => {
+    setClickedCoords(null);
+    setMeteors([]);
+    setExplosions([]);
+    setTsunamis([]);
+    const viewer = viewerRef.current?.cesiumElement;
+    if (viewer) {
+      viewer.camera.flyHome(1.5); // Smooth animation back to starting globe view
+    }
+  };
+
   return (
     <>
       <ViewerComponent
@@ -412,12 +421,15 @@ export default function Globe() {
         {explosions.map(renderExplosion)}
       </ViewerComponent>
 
+      {/* Reset button in top left */}
+      {viewerReady && <RefreshButton onClick={resetGlobe} />}
+
       {clickedCoords && (
         <div
           style={{
             position: "absolute",
             top: 10,
-            left: 10,
+            left: 120,
             background: "rgba(0,0,0,0.55)",
             color: "white",
             padding: "6px 10px",
@@ -450,7 +462,7 @@ export default function Globe() {
             key={`crater-${e.id}`}
             viewer={viewerRef.current!.cesiumElement!}
             center={Cartesian3.fromDegrees(e.lon, e.lat)}
-            neo_reference_id={"2000433"} // replace with dynamic ID if available
+            neo_reference_id={"2000433"}
             onEnd={() => {}}
           />
         ))}
