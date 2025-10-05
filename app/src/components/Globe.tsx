@@ -440,6 +440,7 @@ export default function Globe() {
     setMeteors([]);
     setExplosions([]);
     setTsunamis([]);
+    window.location.reload();
     const viewer = viewerRef.current?.cesiumElement;
     viewer?.camera.flyHome(1.5);
   };
