@@ -30,8 +30,6 @@ import {
   MaterialAppearance,
   Material,
   ClassificationType,
-  VertexFormat,
-  type Property,
   type TerrainProvider,
   type ImageryProvider,
   type Viewer,
@@ -53,15 +51,15 @@ const OUTLINE_ALPHA = 0.9;
 // WATER (Tsunami) COMPONENT
 // ------------------------------------
 function Water({
-                 viewer,
-                 center,
-                 initialRadius = 2_000_000,
-                 waves = 5,
-                 duration = 10,
-                 waveAmplitude = 0.2,
-                 waveWavelength = 0.25,
-                 onEnd,
-               }: {
+  viewer,
+  center,
+  initialRadius = 2_000_000,
+  waves = 5,
+  duration = 10,
+  waveAmplitude = 0.2,
+  waveWavelength = 0.25,
+  onEnd,
+}: {
   viewer: Viewer;
   center: Cartesian3;
   initialRadius?: number;
@@ -72,9 +70,9 @@ function Water({
   onEnd?: () => void;
 }) {
   const primitivesRef = useRef<Primitive[]>([]);
-  const startTimeRef = useRef<number | null>(null);
+  const startTimeRef = useRef<number>();
   const rippleRadiiRef = useRef<number[]>([]);
-  const frameRef = useRef<number | null>(null);
+  const frameRef = useRef<number>();
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -88,9 +86,9 @@ function Water({
     const tryPlay = () => {
       audio.play().catch(() => {
         document.body.addEventListener(
-            "click",
-            () => audio.play().catch(() => {}),
-            { once: true }
+          "click",
+          () => audio.play().catch(() => {}),
+          { once: true }
         );
       });
     };
@@ -143,7 +141,7 @@ function Water({
     });
 
     rippleRadiiRef.current = Array.from({ length: waves }, (_, i) =>
-        i === 0 ? initialRadius * 0.05 : initialRadius - i * (initialRadius / waves) + randomOffsets[i]
+      i === 0 ? initialRadius * 0.05 : initialRadius - i * (initialRadius / waves) + randomOffsets[i]
     );
 
     const isRippleOverWater = (centerCarto: Cartographic, radius: number, samplePoints = 12) => {
@@ -158,7 +156,7 @@ function Water({
     };
 
     const animate = (time: number) => {
-      if (startTimeRef.current === null) startTimeRef.current = time;
+      if (!startTimeRef.current) startTimeRef.current = time;
       const t = (time - startTimeRef.current) * 0.001;
       const alphaBase = Math.max(0, 1 - t / duration);
 
@@ -168,11 +166,11 @@ function Water({
       const centerCarto = Cartographic.fromCartesian(center);
       const growthFactor = Math.min(1, t / duration);
 
-      rippleRadiiRef.current = rippleRadiiRef.current.map((_r, idx) =>
-          Math.min(
-              initialRadius * 0.05 + (maxRadius - initialRadius * 0.05) * growthFactor - idx * (initialRadius / waves) + randomOffsets[idx],
-              maxRadius
-          )
+      rippleRadiiRef.current = rippleRadiiRef.current.map((r, idx) =>
+        Math.min(
+          initialRadius * 0.05 + (maxRadius - initialRadius * 0.05) * growthFactor - idx * (initialRadius / waves) + randomOffsets[idx],
+          maxRadius
+        )
       );
 
       rippleRadiiRef.current.forEach((radius, idx) => {
@@ -182,7 +180,7 @@ function Water({
         const geom = new CircleGeometry({
           center,
           radius,
-          vertexFormat: VertexFormat.POSITION_AND_ST,
+          vertexFormat: MaterialAppearance.VERTEX_FORMAT,
         });
 
         const rippleAlpha = alphaBase * (1 - (idx / waves) * 0.5 + 0.5);
@@ -215,7 +213,7 @@ function Water({
 
     return () => {
       clearTimeout(playTimeout);
-      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
       primitivesRef.current.forEach((p) => viewer.scene.primitives.remove(p));
       primitivesRef.current = [];
       stopAudio();
@@ -246,9 +244,7 @@ export default function Globe() {
 
   useEffect(() => {
     (async () => {
-      const tp = token
-          ? await createWorldTerrainAsync().catch(() => new EllipsoidTerrainProvider({}))
-          : new EllipsoidTerrainProvider({});
+      const tp = token ? await createWorldTerrainAsync().catch(() => new EllipsoidTerrainProvider()) : new EllipsoidTerrainProvider();
       setTerrain(tp);
 
       const sat = new UrlTemplateImageryProvider({
@@ -281,9 +277,9 @@ export default function Globe() {
       meteorSound.volume = 0.8;
       meteorSound.play().catch(() => {
         document.body.addEventListener(
-            "click",
-            () => meteorSound.play().catch(() => {}),
-            { once: true }
+          "click",
+          () => meteorSound.play().catch(() => {}),
+          { once: true }
         );
       });
 
@@ -343,11 +339,22 @@ export default function Globe() {
     return () => handler.destroy();
   }, [viewerReady]);
 
-  const renderMeteor = (m: any) => (
-      <Entity key={`met-${m.id}`} position={m.posProp}>
+  const renderMeteor = (m: any) => {
+    const posProp = new CallbackProperty((t: any) => {
+      const dt = Math.max(0, JulianDate.secondsDifference(t, m.startTime));
+      const u = Math.min(1, dt / m.durationSec);
+      const x = 1 - Math.pow(1 - u, 2);
+      const out = new Cartesian3();
+      Cartesian3.lerp(m.start, m.target, x, out);
+      return out;
+    }, false);
+
+    return (
+      <Entity key={`met-${m.id}`} position={posProp}>
         <PointGraphics color={Color.YELLOW} outlineColor={Color.WHITE} outlineWidth={1} pixelSize={8} disableDepthTestDistance={Infinity} />
       </Entity>
-  );
+    );
+  };
 
   const renderExplosion = (e: any) => {
     const pos = Cartesian3.fromDegrees(e.lon, e.lat);
@@ -360,12 +367,12 @@ export default function Globe() {
     }, false);
 
     const materialProp = new ColorMaterialProperty(
-        new CallbackProperty((t: any) => {
-          const dt = Math.max(0, JulianDate.secondsDifference(t, e.start));
-          const x = Math.min(1, dt / lifeSec);
-          const alpha = 1 - x;
-          return new Color(1.0, 0.45, 0.0, alpha);
-        }, false)
+      new CallbackProperty((t: any) => {
+        const dt = Math.max(0, JulianDate.secondsDifference(t, e.start));
+        const x = Math.min(1, dt / lifeSec);
+        const alpha = 1 - x;
+        return new Color(1.0, 0.45, 0.0, alpha);
+      }, false)
     );
 
     const outlineColorProp = new CallbackProperty((t: any) => {
@@ -376,16 +383,16 @@ export default function Globe() {
     }, false);
 
     return (
-        <Entity key={`expl-${e.id}`} position={pos}>
-          <EllipseGraphics
-              semiMajorAxis={radiusProp}
-              semiMinorAxis={radiusProp}
-              material={materialProp}
-              outline
-              outlineColor={outlineColorProp as any}
-              classificationType={ClassificationType.TERRAIN}
-          />
-        </Entity>
+      <Entity key={`expl-${e.id}`} position={pos}>
+        <EllipseGraphics
+          semiMajorAxis={radiusProp}
+          semiMinorAxis={radiusProp}
+          material={materialProp}
+          outline
+          outlineColor={outlineColorProp as any}
+          classificationType={ClassificationType.TERRAIN}
+        />
+      </Entity>
     );
   };
 
