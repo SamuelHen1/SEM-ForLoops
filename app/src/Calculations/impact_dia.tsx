@@ -1,4 +1,4 @@
-import type { NEO } from "../Types/Neo"; // Correct named import, no .tsx needed for interface
+//import type { NEO } from "../Types/Neo"; // Correct named import, no .tsx needed for interface
 import { getAverageImpactEnergyById } from "./utilities"; // Correct named import
 
 export function getCraterDiameterById(neo_reference_id: string): number | null {
