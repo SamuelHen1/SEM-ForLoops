@@ -37,7 +37,7 @@ import {
   type Viewer,
 } from "cesium";
 
-import Crater from "./crater";
+import Crater from "./Crater";
 import RefreshButton from "./refresh_button";
 
 const token = import.meta.env.VITE_CESIUM_ION_TOKEN as string | undefined;

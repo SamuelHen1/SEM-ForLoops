@@ -8,6 +8,7 @@ import {
   Material,
   Viewer,
   Color,
+  VertexFormat,
 } from "cesium";
 import { getCraterDiameterById } from "../Calculations/impact_dia";
 
@@ -20,18 +21,21 @@ interface CraterProps {
 
 export default function Crater({ viewer, center, neo_reference_id, onEnd }: CraterProps) {
   const primitivesRef = useRef<Primitive[]>([]);
-  const frameRef = useRef<number>();
-
+  const frameRef = useRef<number | null>(null);
   useEffect(() => {
     if (!viewer) return;
 
     const diameter = getCraterDiameterById(neo_reference_id) ?? 5000;
     const radius = diameter / 2;
 
+    // ---- Materials (type-safe uniforms) ----
     const depressionMaterial = new Material({
+      // Cesium’s Material typings are loose; cast fabric to any to avoid “expected args”/shape errors.
       fabric: {
         type: "CraterShadow",
-        uniforms: { color: new Color(0.05, 0.05, 0.05, 0.8) },
+        uniforms: {
+          color: new Color(0.05, 0.05, 0.05, 0.8),
+        },
         source: `
           czm_material czm_getMaterial(czm_materialInput materialInput) {
             czm_material m = czm_getDefaultMaterial(materialInput);
@@ -40,13 +44,17 @@ export default function Crater({ viewer, center, neo_reference_id, onEnd }: Crat
             return m;
           }
         `,
-      },
-    });
+      } as any,
+    } as any);
 
     const lavaMaterial = new Material({
       fabric: {
         type: "LavaGlow",
-        uniforms: { color: new Color(1.0, 0.3, 0.0, 0.8), time: 0, radiusOffset: 0 },
+        uniforms: {
+          color: new Color(1.0, 0.3, 0.0, 0.8),
+          time: 0 as number,
+          radiusOffset: 0 as number,
+        },
         source: `
           uniform float time;
           uniform float radiusOffset;
@@ -59,30 +67,47 @@ export default function Crater({ viewer, center, neo_reference_id, onEnd }: Crat
             return m;
           }
         `,
-      },
-    });
+      } as any,
+    } as any);
 
-    // Static shadow
+    // ---- Static shadow ----
     const shadowPrim = new Primitive({
       geometryInstances: new GeometryInstance({
-        geometry: new CircleGeometry({ center, radius, vertexFormat: MaterialAppearance.VERTEX_FORMAT }),
+        geometry: new CircleGeometry({
+          center,
+          radius,
+          // use VertexFormat directly to satisfy typings
+          vertexFormat: VertexFormat.POSITION_ONLY,
+        } as any),
       }),
-      appearance: new MaterialAppearance({ material: depressionMaterial, translucent: true, flat: true }),
+      appearance: new MaterialAppearance({
+        material: depressionMaterial,
+        translucent: true,
+        flat: true,
+      } as any),
       asynchronous: false,
-    });
+    } as any);
     primitivesRef.current.push(shadowPrim);
     viewer.scene.primitives.add(shadowPrim);
 
-    // Lava rings for flow
+    // ---- Lava rings for flow ----
     const lavaRings = Array.from({ length: 5 }, (_, i) => {
       const r = radius * 0.4;
       const prim = new Primitive({
         geometryInstances: new GeometryInstance({
-          geometry: new CircleGeometry({ center, radius: r, vertexFormat: MaterialAppearance.VERTEX_FORMAT }),
+          geometry: new CircleGeometry({
+            center,
+            radius: r,
+            vertexFormat: VertexFormat.POSITION_ONLY,
+          } as any),
         }),
-        appearance: new MaterialAppearance({ material: lavaMaterial, translucent: true, flat: true }),
+        appearance: new MaterialAppearance({
+          material: lavaMaterial,
+          translucent: true,
+          flat: true,
+        } as any),
         asynchronous: false,
-      });
+      } as any);
       primitivesRef.current.push(prim);
       viewer.scene.primitives.add(prim);
       return { prim, radius: r, offset: i * 0.1 };
@@ -91,17 +116,38 @@ export default function Crater({ viewer, center, neo_reference_id, onEnd }: Crat
     let startTime: number | undefined;
 
     const animate = (time: number) => {
-      if (!startTime) startTime = time;
+      if (startTime === undefined) startTime = time;
       const t = (time - startTime) * 0.001; // seconds
 
       lavaRings.forEach((ring, i) => {
         const growth = radius * 0.5 * (t - i * 0.2); // delay each ring slightly
         if (growth > 0) {
-          ring.prim.geometryInstances = new GeometryInstance({
-            geometry: new CircleGeometry({ center, radius: ring.radius + growth, vertexFormat: MaterialAppearance.VERTEX_FORMAT }),
-          });
-          lavaMaterial.uniforms.time = t;
-          lavaMaterial.uniforms.radiusOffset = Math.min(1, growth / radius);
+          // Recreate the geometry instance with the updated radius
+          // remove old primitive
+          viewer.scene.primitives.remove(ring.prim);
+                  
+          // create + add a new one with the updated radius
+          const newPrim = new Primitive({
+            geometryInstances: new GeometryInstance({
+              geometry: new CircleGeometry({
+                center,
+                radius: ring.radius + growth,
+                vertexFormat: VertexFormat.POSITION_ONLY,
+              } as any),
+            }),
+            appearance: new MaterialAppearance({
+              material: lavaMaterial,
+              translucent: true,
+              flat: true,
+            } as any),
+            asynchronous: false,
+          } as any);
+          
+          // keep reference updated so cleanup still works
+          ring.prim = newPrim;
+          viewer.scene.primitives.add(newPrim);
+          (lavaMaterial.uniforms as any).time = t;
+          (lavaMaterial.uniforms as any).radiusOffset = Math.min(1, growth / radius);
         }
       });
 
@@ -115,7 +161,7 @@ export default function Crater({ viewer, center, neo_reference_id, onEnd }: Crat
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
       primitivesRef.current.forEach((p) => viewer.scene.primitives.remove(p));
       primitivesRef.current = [];
-      if (onEnd) onEnd();
+      onEnd?.();
     };
   }, [viewer, center, neo_reference_id, onEnd]);
 
