@@ -4,6 +4,8 @@ INSTRUCTIONS ON HOW TO RUN THE APP:
 
 In Terminal:
 
-cd app
-npm run dev
-Open the Localhost link.
+1: cd app
+ 
+2: npm run dev
+
+3: Open the Localhost link.
