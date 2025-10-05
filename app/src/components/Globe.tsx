@@ -435,7 +435,8 @@ export default function Globe() {
   );
 
   const latestImpactSummary = latestImpactMeta ? impactSummaries[latestImpactMeta.id] : undefined;
-  const casualtyData = latestImpactSummary?.data;
+  const casualtyData = latestImpactSummary?.data;
+
   const casualtyOverlayTop = clickedCoords ? 60 : 10;
 
   const renderExplosion = (e: ExplosionEvent) => {
@@ -563,6 +564,14 @@ export default function Globe() {
               <div>
                 Effective density: {(casualtyData.effectiveDensityPerSqKm ?? casualtyData.densityPerSqKm).toFixed(1)} ppl/km^2
               </div>
+              {casualtyData.sampledMeanDensityPerSqKm !== undefined && (
+                <div>
+                  Sampled mean density (within 100 km): {casualtyData.sampledMeanDensityPerSqKm.toFixed(1)} ppl/km^2
+                  {casualtyData.samplePointCount !== undefined && (
+                    <span> ({casualtyData.samplePointCount} cells)</span>
+                  )}
+                </div>
+              )}
               {casualtyData.localCellDensityPerSqKm !== undefined && (
                 <div>
                   Local cell density: {casualtyData.localCellDensityPerSqKm.toFixed(1)} ppl/km^2
